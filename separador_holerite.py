@@ -1,57 +1,61 @@
-import PyPDF2
 import tkinter as tk
-from tkinter import filedialog, simpledialog, messagebox
+from tkinter import filedialog, messagebox, ttk
+import pdfplumber
+import PyPDF2
 import os
 
-def separar_pdf():
-    # Abre janela para escolher o PDF
+def separar_holerites():
     arquivo_pdf = filedialog.askopenfilename(
-        title="Selecione o PDF de Holerites",
-        filetypes=[("Arquivos PDF", "*.pdf")]
+        title="Selecione o PDF de holerites",
+        filetypes=[("PDF", "*.pdf")]
     )
-
     if not arquivo_pdf:
         return
 
-    # Cria pasta de saída na mesma pasta do PDF
     pasta_saida = os.path.join(os.path.dirname(arquivo_pdf), "Holerites Separados")
     os.makedirs(pasta_saida, exist_ok=True)
 
-    # Abre PDF
-    with open(arquivo_pdf, "rb") as pdf_file:
-        leitor = PyPDF2.PdfReader(pdf_file)
+    with open(arquivo_pdf, "rb") as f:
+        leitor = PyPDF2.PdfReader(f)
 
-        for num_pagina in range(len(leitor.pages)):
-            # Pede o nome para cada página
-            nome = simpledialog.askstring(
-                "Nome da Pessoa",
-                f"Digite o nome para a página {num_pagina + 1}:"
-            )
+        with pdfplumber.open(arquivo_pdf) as pdf:
+            total_paginas = len(pdf.pages)
+            progresso["maximum"] = total_paginas
 
-            if not nome:
-                nome = f"Pessoa_{num_pagina+1}"  # fallback se não digitar nada
+            for i, page in enumerate(pdf.pages):
+                texto = page.extract_text() or ""
 
-            escritor = PyPDF2.PdfWriter()
-            escritor.add_page(leitor.pages[num_pagina])
+                nome = f"Funcionario_{i+1}"  # fallback
+                for linha in texto.split("\n"):
+                    if "Nome:" in linha:
+                        nome = linha.replace("Nome:", "").strip()
+                        break
 
-            nome_arquivo = os.path.join(pasta_saida, f"Holerite - {nome}.pdf")
+                escritor = PyPDF2.PdfWriter()
+                escritor.add_page(leitor.pages[i])
 
-            with open(nome_arquivo, "wb") as saida:
-                escritor.write(saida)
+                nome_arquivo = os.path.join(pasta_saida, f"Extrato-{nome}.pdf")
+                with open(nome_arquivo, "wb") as saida:
+                    escritor.write(saida)
 
-            print(f"✅ Criado: {nome_arquivo}")
+                progresso["value"] = i + 1
+                root.update_idletasks()
 
-    messagebox.showinfo("Concluído", f"Holerites separados em:\n{pasta_saida}")
+    messagebox.showinfo("Concluído", f"Todos os holerites foram separados em:\n{pasta_saida}")
+    progresso["value"] = 0
 
-# Interface gráfica simples
 root = tk.Tk()
 root.title("Separador de Holerites")
-root.geometry("300x150")
+root.geometry("400x180")
+root.resizable(False, False)
 
-label = tk.Label(root, text="Clique no botão para separar o PDF", pady=20)
+label = tk.Label(root, text="Clique no botão para separar os holerites por página", pady=20)
 label.pack()
 
-botao = tk.Button(root, text="Selecionar PDF", command=separar_pdf)
-botao.pack(pady=10)
+btn = tk.Button(root, text="Selecionar PDF", command=separar_holerites, width=20)
+btn.pack(pady=10)
+
+progresso = ttk.Progressbar(root, orient="horizontal", length=300, mode="determinate")
+progresso.pack(pady=20)
 
 root.mainloop()
